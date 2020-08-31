@@ -2,6 +2,7 @@ library(tidyverse)
 library(sf)
 library(units)
 library(rstan)
+library(car)
 
 options(mc.cores = parallel::detectCores())
 rstan_options(auto_write = TRUE)
@@ -50,7 +51,8 @@ land_price_sf %>%
            crs = JGD2000) %>% 
   st_transform(JGD2000_UTM_zone_53N) %>% 
   mutate(X = st_coordinates(.)[, "X"],
-         Y = st_coordinates(.)[, "Y"]) %>% 
+         Y = st_coordinates(.)[, "Y"],
+         price_per_m2 = price / area_m2) %>% 
   st_drop_geometry() %>% 
   sample_n(5 * 10 ^ 2)
 
@@ -71,31 +73,36 @@ land_price_sf %>%
 #   ggplot() +
 #   geom_sf()
 
+# .lambda <- .land_price %>% 
+#   .$price_per_m2 %>% 
+#   powerTransform() %>% 
+#   .$lambda
+
 .data <- list(N1 = nrow(.land_price),
               x1 = .land_price[c("X", "Y")],
               y1 = .land_price %>% 
-                mutate(price_per_m2 = price / area_m2) %>% 
-                .$price_per_m2,
+                .$price_per_m2 %>% 
+                bcPower(.lambda),
               N2 = nrow(.grid),
               x2 = .grid[c("X", "Y")])
 
 .stan_model <- stan_model("src/gp_predict.stan")
 
-# .sampling <- sampling(.stan_model,
-#                       data = .data,
-#                       seed = 123)
+.sampling <- sampling(.stan_model,
+                      data = .data,
+                      seed = 123)
 
-.vb <- vb(.stan_model,
-          data = .data,
-          seed = 123,
-          tol_rel_obj = 10 ^ -4)
+# .vb <- vb(.stan_model,
+#           data = .data,
+#           seed = 123,
+#           tol_rel_obj = 10 ^ -4)
 
-.vb %>% 
+.sampling %>% 
   summary() %>% 
   .$summary %>% 
   as.data.frame() %>% 
   rownames_to_column() %>% 
   as_tibble() %>% 
-  filter(str_detect(rowname, "^y2")) %>% 
-  .$mean
+  filter(str_detect(rowname, "^y2"))
+  # .$mean
   
