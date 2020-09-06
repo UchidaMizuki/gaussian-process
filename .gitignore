@@ -4,3 +4,10 @@
 .Ruserdata
 *.png
 *.csv
+*.xml
+*.dbf
+*.geojson
+*.prj
+*.shp
+*.shx
+*.gpkg
